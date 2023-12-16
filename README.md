@@ -7,3 +7,5 @@
 - OpenAI API key
 
 The code assumes that you are on Windows, have Logos installed, and that you have a valid OpenAI API key with an environment variable called OPENAI_API_KEY.
+
+Running the code requires that you have the `openai` and `jupyterlab` Python packages installed.

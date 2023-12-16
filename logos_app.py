@@ -10,7 +10,7 @@ class LogosApplication:
             time.sleep(1)  # Wait for the application to launch
         self.application = self.launcher.Application
 
-    def search(self, query):
+    def search_logos_library(self, query):
         return self.application.Library.GetResourcesMatchingQuery(query)
     
 def search_logos_library(query: str) -> str:
@@ -25,7 +25,7 @@ def search_logos_library(query: str) -> str:
         str: A JSON string of a list of dictionaries. Each dictionary contains the title of a search result.
     """
     logos = LogosApplication()
-    results = logos.search(query)
+    results = logos.search_logos_library(query)
     result_list = []
 
     for result in results:

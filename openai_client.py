@@ -7,11 +7,11 @@ import openai
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
 
-from logos_app import search_logos_library
+from logos_app import search_logos_library, get_bible_passage
 
 
 class OpenAIClient:
-    def __init__(self, model: str|None = None):
+    def __init__(self, model: str|None = None, auto_display_response: bool = True):
         # For simplicity, we assume the api key is stored as an environment variable
         self.api_key = os.environ.get("OPENAI_API_KEY")
         self.openai = openai
@@ -19,13 +19,14 @@ class OpenAIClient:
         self.last_response_obj = None
         self.messages = list()
         self.model = model
+        self.auto_display_response = auto_display_response
 
     def list_models(self) -> List[dict]:
         client = openai.OpenAI()
         models_list = client.models.list()
         return models_list.model_dump()
 
-    def request_completion(self, temp: float = 1.0, max_tokens: int = 16, num_completions: int = 1, tools: list|None = None, tool_choice: str|None = None, print_response=True) -> None:
+    def request_completion(self, temp: float = 1.0, max_tokens: int = 16, num_completions: int = 1, tools: list|None = None, tool_choice: str|None = None, handle_response=True) -> None:
         """
         Since this is just an example, we don't worry about a function that can handle all possible parameters of the OpenAI API.
         Note that we only run one follow-up completion.
@@ -60,10 +61,13 @@ class OpenAIClient:
                     temp=temp,
                     max_tokens=max_tokens,
                     num_completions=num_completions,
-                    print_response=print_response
+                    handle_response=False,
                 )
+        else:
+            handle_response = True
 
-        self._handle_response(response_object, print_response=print_response)
+        if handle_response:
+            self._handle_response(response_object)
     
     def _handle_tool_calls(self, tool_calls: dict) -> bool:
         """
@@ -72,6 +76,7 @@ class OpenAIClient:
         run_follow_up = False
         available_functions = {
             "search_logos_library": search_logos_library,
+            "get_bible_passage": get_bible_passage,
         }
         for tool_call in tool_calls:
             function_name  = tool_call.function.name
@@ -88,17 +93,19 @@ class OpenAIClient:
                         "content": function_response,
                     }
                 )
+            else:
+                print(f"[ERROR] No function named '{function_name}' available.")
 
         return run_follow_up
     
-    def _handle_response(self, response_obj: ChatCompletion, print_response: bool = True) -> None:
+    def _handle_response(self, response_obj: ChatCompletion) -> None:
         """
         Truncated example. Here we might want to auto-save the response or the messages as a chat log.
         """
         res_dict = response_obj.model_dump()
         # If n > 1, there will be other response content, we ignore that for this example
         res_content = res_dict["choices"][0]["message"]["content"]
-        if print_response:
+        if self.auto_display_response:
             print(res_content)
         
         self.last_response_obj = response_obj
@@ -157,3 +164,44 @@ class OpenAIClient:
 
     def clear_messages(self) -> None:
         self.messages.clear()
+
+def load_tools() -> List[dict]:
+    """
+    Convenience function for loading the tools into the OpenAI API.
+    """
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": "search_logos_library",
+                "description": "Searches the LogosApplication library for a given query and returns a JSON string of the search results",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The search term to query in the LogosApplication library",
+                        },
+                    },
+                    "required": ["query"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_bible_passage",
+                "description": "Returns the text of a Bible passage as a string. If the passage is not found, returns None. Can be used to check accuracy of a Bible reference.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "passage": {
+                            "type": "string",
+                            "description": "The Bible passage to retrieve. Can be more than a single verse: e.g., 'John 3:16-17'.",
+                        },
+                    },
+                    "required": ["passage"],
+                },
+            },
+        },
+    ]
